@@ -2,10 +2,6 @@ import pandas as pd
 import os
 import shutil
 
-# -------------------------------------
-# File Paths
-# -------------------------------------
-
 STAGING_FILE = "/opt/airflow/staging/staged_data.csv"
 
 FAILED_DIR = "/opt/airflow/failed"
@@ -14,79 +10,69 @@ FAILED_FILE = "/opt/airflow/failed/failed_batch.csv"
 VALIDATED_DIR = "/opt/airflow/validated"
 VALIDATED_FILE = "/opt/airflow/validated/validated_batch_latest.csv"
 
-try:
 
-    # -------------------------------------
-    # Read staged file
-    # -------------------------------------
+EXPECTED_COLUMNS = [
+    "video_id",
+    "video_url",
+    "title",
+    "description",
+    "channel_id",
+    "channel_name",
+    "published_at",
+    "category_id",
+    "category_name",
+    "thumbnail_url",
+    "tags",
+    "duration",
+    "view_count",
+    "like_count",
+    "comment_count",
+    "favorite_count",
+    "default_language",
+    "default_audio_language",
+    "caption_available",
+    "licensed_content",
+    "privacy_status",
+    "definition",
+    "dimension"
+]
 
-    df = pd.read_csv(STAGING_FILE)
-    print(f"Loaded {len(df)} rows from staging.")
+CRITICAL_COLUMNS = [
+    "video_id",
+    "title",
+    "channel_name",
+    "view_count"
+]
 
-    # -------------------------------------
-    # Schema Validation
-    # -------------------------------------
 
-    expected_columns = [
-        "video_id",
-        "video_url",
-        "title",
-        "description",
-        "channel_id",
-        "channel_name",
-        "published_at",
-        "category_id",
-        "category_name",
-        "thumbnail_url",
-        "tags",
-        "duration",
-        "view_count",
-        "like_count",
-        "comment_count",
-        "favorite_count",
-        "default_language",
-        "default_audio_language",
-        "caption_available",
-        "licensed_content",
-        "privacy_status",
-        "definition",
-        "dimension"
+def validate_data(df):
+
+    # Schema validation
+    missing = [
+        col for col in EXPECTED_COLUMNS
+        if col not in df.columns
     ]
 
-    missing = []
+    if missing:
+        raise ValueError(
+            f"Schema Validation Failed. Missing Columns: {missing}"
+        )
 
-    for col in expected_columns:
-        if col not in df.columns:
-            missing.append(col)
-
-    if len(missing) > 0:
-        raise Exception(f"Schema Validation Failed.\nMissing Columns: {missing}")
-
-    print("Schema Validation Passed")
-
-    # -------------------------------------
-    # Null Validation
-    # -------------------------------------
-
-    critical_columns = [
-        "video_id",
-        "title",
-        "channel_name",
-        "view_count"
-    ]
-
-    df = df.dropna(subset=critical_columns)
+    # Null validation
+    df = df.dropna(subset=CRITICAL_COLUMNS)
 
     if len(df) == 0:
-        raise Exception("All rows failed Null Validation.")
+        raise ValueError(
+            "All rows failed Null Validation."
+        )
 
-    print(f"Rows after Null Check : {len(df)}")
+    # Outlier detection
+    df = df.copy()
 
-    # -------------------------------------
-    # Outlier Detection
-    # -------------------------------------
-
-    df["view_count"] = pd.to_numeric(df["view_count"], errors="coerce")
+    df["view_count"] = pd.to_numeric(
+        df["view_count"],
+        errors="coerce"
+    )
 
     Q1 = df["view_count"].quantile(0.25)
     Q3 = df["view_count"].quantile(0.75)
@@ -102,35 +88,53 @@ try:
     ]
 
     if len(validated_df) == 0:
-        raise Exception("All rows removed as Outliers.")
+        raise ValueError(
+            "All rows removed as Outliers."
+        )
 
-    print(f"Rows after Outlier Removal : {len(validated_df)}")
+    return validated_df
 
-    # -------------------------------------
-    # Save Validated Batch
-    # -------------------------------------
 
-    os.makedirs(VALIDATED_DIR, exist_ok=True)
+def run_validation():
 
-    validated_df.to_csv(
-        VALIDATED_FILE,
-        index=False
-    )
+    try:
 
-    print(f"Saved validated data to {VALIDATED_FILE}")
-    print("Validation Completed Successfully")
+        df = pd.read_csv(STAGING_FILE)
 
-# -------------------------------------
-# Error Handling
-# -------------------------------------
+        print(f"Loaded {len(df)} rows from staging.")
 
-except Exception as e:
+        validated_df = validate_data(df)
 
-    os.makedirs(FAILED_DIR, exist_ok=True)
+        os.makedirs(VALIDATED_DIR, exist_ok=True)
 
-    if os.path.exists(STAGING_FILE):
-        shutil.copy(STAGING_FILE, FAILED_FILE)
+        validated_df.to_csv(
+            VALIDATED_FILE,
+            index=False
+        )
 
-    print("Validation Failed")
-    print(e)
-    print(f"Failed batch stored in {FAILED_FILE}")
+        print(
+            f"Saved validated data to {VALIDATED_FILE}"
+        )
+
+        print("Validation Completed Successfully")
+
+    except Exception as e:
+
+        os.makedirs(FAILED_DIR, exist_ok=True)
+
+        if os.path.exists(STAGING_FILE):
+            shutil.copy(
+                STAGING_FILE,
+                FAILED_FILE
+            )
+
+        print("Validation Failed")
+        print(e)
+        print(
+            f"Failed batch stored in {FAILED_FILE}"
+        )
+
+
+if __name__ == "__main__":
+    run_validation()
+
