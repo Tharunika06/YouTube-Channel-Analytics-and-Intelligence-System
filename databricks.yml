@@ -1,0 +1,20 @@
+bundle:
+  name: youtube_pipeline
+
+include:
+  - resources/*.yml
+
+targets:
+
+  dev:
+    mode: development
+    default: true
+
+    workspace:
+      host: https://<YOUR-DATABRICKS-WORKSPACE-URL>
+
+  prod:
+    mode: production
+
+    workspace:
+      host: https://<YOUR-DATABRICKS-WORKSPACE-URL>
