@@ -70,3 +70,7 @@ Load SQLite
 SQLite Database
        ↓
 Streamlit Analytics Dashboard
+
+## CI/CD
+
+Automated unit tests are executed using GitHub Actions.
