@@ -49,7 +49,13 @@ def test_missing_column():
 
     with pytest.raises(ValueError, match="Schema Validation Failed"):
         validate_data(df)
+def test_missing_title_removed():
+    df = create_valid_data()
+    df.loc[0, "title"] = None
 
+    result = validate_data(df)
+
+    assert len(result) == 2
 
 def test_null_validation():
     df = create_valid_data()
